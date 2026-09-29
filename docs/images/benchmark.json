@@ -1,0 +1,12 @@
+{
+  "cpu": "x86_64",
+  "threads": 2,
+  "pytorch": {
+    "median_ms": 81.9,
+    "p95_ms": 92.6
+  },
+  "onnxruntime": {
+    "median_ms": 57.7,
+    "p95_ms": 64.8
+  }
+}
