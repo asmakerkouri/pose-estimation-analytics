@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install (CPU PyTorch)
+        run: |
+          pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements-dev.txt
+      - run: ruff check .
+      - name: Tests (geometry, rep counter, API on a real image)
+        run: pytest -q
+      - name: Demo on sample images
+        run: python -m posekit.cli samples/bus.jpg samples/zidane.jpg --out output
+      - uses: actions/upload-artifact@v4
+        with:
+          name: demo-output
+          path: output/
+
+  docker:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: pose-api:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Smoke test
+        run: |
+          docker run -d -p 8000:8000 --name api pose-api:ci
+          for i in $(seq 1 60); do curl -fs localhost:8000/health && break; sleep 2; done
+          curl -fs -F "file=@samples/bus.jpg" localhost:8000/pose | python -c "import json,sys;d=json.load(sys.stdin);print(d['count'],'people');assert d['count']>=3"
